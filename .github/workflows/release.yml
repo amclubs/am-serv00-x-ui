@@ -1,0 +1,48 @@
+name: Release X-ui
+on:
+  push:
+    tags:
+      - 0.*
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true
+          prerelease: true
+  freebsdamd64build:
+    name: build x-ui amd64 version
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+      - name: Build using custom FreeBSD Docker
+        run: |
+          docker build -t my-freebsd-build .
+          docker run --rm -v ${{ github.workspace }}:/workspace my-freebsd-build
+      - name: package
+        run: tar -zcvf x-ui-freebsd-amd64.tar.gz x-ui
+      - name: upload
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: x-ui-freebsd-amd64.tar.gz
+          asset_name: x-ui-freebsd-amd64.tar.gz
+          asset_content_type: application/gzip
